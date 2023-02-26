@@ -18,7 +18,7 @@
 #define PEDS_MOVING_TIME 5
 #define TOGGLE_TIMEOUT 10
 
-void toggleToPedestrain(void) {
+void toggle_to_pedestrian(void) {
     // Blink green
     for (int i = 0; i < 3; i++) {
         gpio_clear(CAR_LED_GREEN);
@@ -38,7 +38,7 @@ void toggleToPedestrain(void) {
     gpio_set(PEDESTRIAN_LED_GREEN);
 }
 
-void toggleToCars(void) {
+void toggle_to_cars(void) {
     for (int i = 0; i < 3; i++) {
         gpio_clear(PEDESTRIAN_LED_GREEN);
         xtimer_msleep(300);
@@ -51,12 +51,12 @@ void toggleToCars(void) {
     gpio_set(CAR_LED_GREEN);
 }
 
-volatile bool carsMoving = true;
-volatile uint8_t timeLeft = CARS_MOVING_TIME;
+volatile bool CARS_MOVING = true;
+volatile uint8_t TIME_LEFT = CARS_MOVING_TIME;
 
 void button_handler(void* arg) {
-    if (timeLeft > TOGGLE_TIMEOUT && carsMoving) {
-        timeLeft = TOGGLE_TIMEOUT;
+    if (TIME_LEFT > TOGGLE_TIMEOUT && CARS_MOVING) {
+        TIME_LEFT = TOGGLE_TIMEOUT;
     }
     (void)arg;
 }
@@ -82,17 +82,17 @@ int main(void) {
 
     while (true) {
         xtimer_msleep(1000);
-        timeLeft--;
-        if (timeLeft == 0) {
-            if (carsMoving) {
-                carsMoving = false;
-                toggleToPedestrain();
-                timeLeft = PEDS_MOVING_TIME;
+        TIME_LEFT--;
+        if (TIME_LEFT == 0) {
+            if (CARS_MOVING) {
+                CARS_MOVING = false;
+                toggle_to_pedestrian();
+                TIME_LEFT = PEDS_MOVING_TIME;
             }
             else {
-                carsMoving = true;
-                toggleToCars();
-                timeLeft = CARS_MOVING_TIME;
+                CARS_MOVING = true;
+                toggle_to_cars();
+                TIME_LEFT = CARS_MOVING_TIME;
             }
         }
     }
