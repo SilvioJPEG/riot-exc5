@@ -4,62 +4,110 @@
 #include "periph/gpio.h"
 #include "xtimer.h"
 
-#define BTN0_PIN    GPIO_PIN(0, 13);
 //TODO: replace pins
-#define LED_GREEN   GPIO_PIN(2,13)
-#define LED_YELLOW  GPIO_PIN(3,13)
-#define LED_RED     GPIO_PIN(4,13)
+#define BTN_PIN                 GPIO_PIN(PORT_C, 0)
 
-volatile int delay = 2000000;
-volatile int will_plan_next_row_delay = delay * 2
-volatile int next_row = true;
-volatile int cycle_start_timestamp = xtimer_now_usec();
-char t2_stack[THREAD_STACKSIZE_MAIN];
-void* second_thread(void* arg)
-{
-  gpio_init(BTN0_PIN, GPIO_IN);
-  while (true) {
-    int is_pressed = gpio_read(BTN0_PIN);
-    int current_timestamp = xtimer_now_usec();
-    int delta = abs(cycle_start_timestamp - current_timestamp);
-    printf("green led will be on in %d ms", abs(delay * 3 - delta));
-    if (is_pressed) {
-      if (next_row == false && delta < delay * 2) {
-        next_row = true;
-      }
+#define PEDESTRIAN_LED_RED      GPIO_PIN(PORT_D, 2)
+#define PEDESTRIAN_LED_GREEN    GPIO_PIN(PORT_D, 3)
+
+#define CAR_LED_GREEN           GPIO_PIN(PORT_B, 2)
+#define CAR_LED_YELLOW          GPIO_PIN(PORT_B, 1)
+#define CAR_LED_RED             GPIO_PIN(PORT_B, 0)
+
+const uint32_t car_traffic_time = 60000000; // 60 sec
+const uint32_t pedestrian_time = 10000000; // 10 sec
+
+enum light_state {
+    green,  // 0
+    yellow, // 1
+    red     // 2
+};
+
+void changePedastrianLight(enum light_state pedastrian_light_state) {
+    gpio_clear(PEDESTRIAN_LED_GREEN);
+    gpio_clear(PEDESTRIAN_LED_RED);
+    switch (pedastrian_light_state) {
+    case green:
+        gpio_set(PEDESTRIAN_LED_GREEN);
+        break;
+    case red:
+        gpio_set(PEDESTRIAN_LED_RED);
+        break;
+    default:
+        break;
     }
-  }
-
-  return NULL;
 }
 
+void changeCarLight(enum light_state car_light_state) {
+    gpio_clear(CAR_LED_GREEN);
+    gpio_clear(CAR_LED_YELLOW);
+    gpio_clear(CAR_LED_RED);
+    switch (car_light_state) {
+    case green:
+        gpio_set(CAR_LED_GREEN);
+        break;
+    case yellow:
+        gpio_set(CAR_LED_YELLOW);
+        break;
+    case red:
+        gpio_set(CAR_LED_RED);
+        break;
+    default:
+        break;
+    }
+}
 
-int main() {
-  //thread for btn
-  (void)thread_create(
-    t2_stack, sizeof(t2_stack),
-    THREAD_PRIORITY_MAIN - 1,
-    THREAD_CREATE_WOUT_YIELD | THREAD_CREATE_STACKTEST,
-    second_thread, NULL, "nr2");
+int main(void) {
+    uint32_t current_time,
+        car_traffic_start, car_delta,
+        pedestrian_start, pedastrian_delta;
+    car_traffic_start = xtimer_now_usec();
+    // bool car_light_blink = false;
+    bool pedastrian_light_blink = false;
+    /**
+     * 0 = green;
+     * 1 = yellow;
+     * 2 = red;
+    */
+    enum light_state car_light_state = green;
+    enum light_state pedastrian_light_state = green;
+    gpio_init(CAR_LED_GREEN, GPIO_OUT);
+    gpio_init(CAR_LED_YELLOW, GPIO_OUT);
+    gpio_init(CAR_LED_RED, GPIO_OUT);
 
-  gpio_init(LED_GREEN, GPIO_OUT);
-  gpio_init(LED_YELLOW, GPIO_OUT);
-  gpio_init(LED_RED, GPIO_OUT);
-  while (next_row) {
-    next_row = false;
-    gpio_set(LED_RED);
-    xtimer_usleep(delay);
-    gpio_clear(LED_RED);
+    gpio_init(PEDESTRIAN_LED_RED, GPIO_OUT);
+    gpio_init(PEDESTRIAN_LED_GREEN, GPIO_OUT);
+    gpio_init(BTN_PIN, GPIO_IN);
+    while (1) {
+        current_time = xtimer_now_usec();
+        car_delta = current_time - car_traffic_start;
 
-    gpio_set(LED_YELLOW);
-    xtimer_usleep(delay);
-    gpio_clear(LED_YELLOW);
 
-    gpio_set(LED_GREEN);
-    xtimer_usleep(delay);
-    gpio_clear(LED_GREEN);
-    cycle_start_timestamp = xtimer_now_usec();
+        // время пешеходов
+        if (car_delta >= car_traffic_time) {
+            car_light_state = red;
+            pedastrian_light_state = green;
+            pedestrian_start = xtimer_now_usec();
+            pedastrian_delta = 0U;
+            while (pedastrian_delta < pedestrian_time) {
+                current_time = xtimer_now_usec();
+                pedastrian_delta = current_time - pedestrian_start;
+                if (pedastrian_delta > pedestrian_time / 2) {
+                    pedastrian_light_blink = true;
+                    car_light_state = yellow;
+                }
+                changePedastrianLight(pedastrian_light_state);
+                if (pedastrian_light_blink) xtimer_usleep(100000);
+            }
+            car_traffic_start = xtimer_now_usec();
+        }
 
-  }
-  return 0;
+
+        if (car_delta < car_traffic_time) {
+            car_light_state = green;
+        }
+
+        changeCarLight(car_light_state);
+    }
+    return 0;
 }

@@ -2,10 +2,12 @@
 APPLICATION = ex2
 
 # If no BOARD is found in the environment, use this default:
-BOARD ?= nucleo-l152re
+# BOARD ?= nucleo-f401re
+BOARD ?= arduino-uno
+PORT_LINUX ?= /dev/ttyUSB0
 
 USEMODULE += periph_gpio
-FEATURES_REQUIRED += periph_gpio_irq
+USEMODULE += periph_gpio_irq
 USEMODULE += xtimer
 
 # This has to be the absolute path to the RIOT base directory:
